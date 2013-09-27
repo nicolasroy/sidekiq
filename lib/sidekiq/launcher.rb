@@ -14,12 +14,14 @@ module Sidekiq
 
     trap_exit :actor_died
 
-    attr_reader :manager, :poller, :fetcher
+    attr_reader :manager, :poller, :fetcher, :timer
 
     def initialize(options)
       @manager = Sidekiq::Manager.new_link options
       @poller = Sidekiq::Scheduled::Poller.new_link
+      @timer = Sidekiq::Scheduled::Timer.new_link @manager
       @fetcher = Sidekiq::Fetcher.new_link @manager, options
+
       @manager.fetcher = @fetcher
       @done = false
       @options = options
@@ -36,6 +38,7 @@ module Sidekiq
       watchdog('Launcher#run') do
         manager.async.start
         poller.async.poll(true)
+        timer.async.start_monitor
       end
     end
 
@@ -45,6 +48,7 @@ module Sidekiq
         Sidekiq::Fetcher.done!
         fetcher.async.terminate if fetcher.alive?
         poller.async.terminate if poller.alive?
+        timer.async.terminate if timer.alive?
 
         manager.async.stop(:shutdown => true, :timeout => @options[:timeout])
         manager.wait(:shutdown)
