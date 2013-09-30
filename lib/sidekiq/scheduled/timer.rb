@@ -4,6 +4,9 @@ require 'sidekiq'
 module Sidekiq
   module Scheduled
     class Timer
+      include Util
+      include Actor
+
       MONITOR_INTERVAL = 15
       TIMEOUT = 90
 
