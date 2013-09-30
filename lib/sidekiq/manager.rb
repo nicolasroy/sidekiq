@@ -61,7 +61,8 @@ module Sidekiq
       @done_callback = blk
     end
 
-    def processor_done(processor)
+    def processor_done(processor, jid)
+      Sidekiq.logger.error{ "Manager is aware the processor finished job #{jid}"}
       watchdog('Manager#processor_done died') do
         @done_callback.call(processor) if @done_callback
         @in_progress.delete(processor.object_id)
@@ -73,7 +74,7 @@ module Sidekiq
         else
           @ready << processor if processor.alive?
         end
-        dispatch
+        dispatch jid
       end
     end
 
@@ -95,6 +96,7 @@ module Sidekiq
     end
 
     def assign(work)
+      Sidekiq.logger.debug("Manager begins to assign work #{work.to_json}")
       watchdog("Manager#assign died") do
         if stopped?
           # Race condition between Manager#stop if Fetcher
@@ -102,11 +104,13 @@ module Sidekiq
           # all the ready Processors have been stopped.
           # Push the message back to redis.
           work.requeue
+          Sidekiq.logger.debug("Manager failed to assign work. Requeing")
         else
           processor = @ready.pop
           @in_progress[processor.object_id] = work
           @busy << processor
           processor.async.process(work)
+          Sidekiq.logger.debug("Manager assigned work to processor #{processor.object_id}")
         end
       end
     end
@@ -171,13 +175,15 @@ module Sidekiq
       end
     end
 
-    def dispatch
+    def dispatch(previous_jid=nil)
+      Sidekiq.logger.error{ "Manager Begin dispatch new job to replace #{previous_jid}"}
       return if stopped?
       # This is a safety check to ensure we haven't leaked
       # processors somehow.
       raise "BUG: No processors, cannot continue!" if @ready.empty? && @busy.empty?
       raise "No ready processor!?" if @ready.empty?
 
+      Sidekiq.logger.error{ "Manager dispatch calling fetcher to replace #{previous_jid}" }
       @fetcher.async.fetch
     end
 

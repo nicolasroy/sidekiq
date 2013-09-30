@@ -1,5 +1,6 @@
 require 'sidekiq'
 require 'sidekiq/actor'
+require 'json'
 
 module Sidekiq
   ##
@@ -27,6 +28,8 @@ module Sidekiq
     # forever and we can't loop forever.  Instead we reschedule
     # a new fetch if the current fetch turned up nothing.
     def fetch
+      Sidekiq.logger.info("Begin fetching")
+
       watchdog('Fetcher#fetch died') do
         return if Sidekiq::Fetcher.done?
 
@@ -35,6 +38,7 @@ module Sidekiq
           ::Sidekiq.logger.info("Redis is online, #{Time.now.to_f - @down.to_f} sec downtime") if @down
           @down = nil
 
+          Sidekiq.logger.debug("Work fetched: #{work.to_json}")
           if work
             @mgr.async.assign(work)
           else

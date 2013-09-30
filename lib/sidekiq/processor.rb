@@ -36,7 +36,7 @@ module Sidekiq
 
       msg = Sidekiq.load_json(msgstr)
 
-      Sidekiq.logger.info { "Preparing Job, #{msg['jid']}" }
+      Sidekiq.logger.info { "Processing Job, #{msg['jid']}" }
 
       do_defer do
         @boss.async.real_thread(proxy_id, Thread.current)
@@ -67,7 +67,7 @@ module Sidekiq
         end
       end
       Sidekiq.logger.info { "Tell the boss we're done, #{msg['jid']}" }
-      @boss.async.processor_done(current_actor)
+      @boss.async.processor_done(current_actor, msg['jid'])
       Sidekiq.logger.info { "Job Complete, #{msg['jid']}" }
     end
 
