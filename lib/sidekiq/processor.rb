@@ -53,7 +53,9 @@ module Sidekiq
               worker.perform(*cloned(msg['args']))
               Sidekiq.logger.info { "Job processed, #{worker.jid}" }
             end
+            Sidekiq.logger.info { "All middlewares called, #{worker.jid}" }
           end
+          Sidekiq.logger.info { "End of stats block, #{worker.jid}" }
         rescue Sidekiq::Shutdown
           Sidekiq.logger.error { "Rescue Job Sidekiq::Shutdown, #{worker.jid}" }
           # Had to force kill this job because it didn't finish

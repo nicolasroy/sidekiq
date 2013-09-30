@@ -112,9 +112,13 @@ module Sidekiq
         chain = retrieve.dup
         traverse_chain = lambda do
           if chain.empty?
+            Sidekiq.logger.info { "All middeware called." }
             final_action.call
           else
-            chain.shift.call(*args, &traverse_chain)
+            mw = chain.shift
+            Sidekiq.logger.info { "Invoking middleware, #{mw.class.name}" }
+            mw.call(*args, &traverse_chain)
+            Sidekiq.logger.info { "Invoke complete, #{mw.class.name}" }
           end
         end
         traverse_chain.call
