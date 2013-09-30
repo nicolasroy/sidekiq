@@ -34,32 +34,41 @@ module Sidekiq
       msgstr = work.message
       queue = work.queue_name
 
+      msg = Sidekiq.load_json(msgstr)
+
+      Sidekiq.logger.info { "Preparing Job, #{msg['jid']}" }
+
       do_defer do
         @boss.async.real_thread(proxy_id, Thread.current)
 
         begin
-          msg = Sidekiq.load_json(msgstr)
+
           klass  = msg['class'].constantize
           worker = klass.new
           worker.jid = msg['jid']
 
           stats(worker, msg, queue) do
             Sidekiq.server_middleware.invoke(worker, msg, queue) do
+              Sidekiq.logger.info { "Job starts processing, #{worker.jid}" }
               worker.perform(*cloned(msg['args']))
+              Sidekiq.logger.info { "Job processed, #{worker.jid}" }
             end
           end
         rescue Sidekiq::Shutdown
+          Sidekiq.logger.error { "Rescue Job Sidekiq::Shutdown, #{worker.jid}" }
           # Had to force kill this job because it didn't finish
           # within the timeout.
         rescue Exception => ex
+          Sidekiq.logger.error{ "Rescue Job Exception, #{worker.jid}"}
           handle_exception(ex, msg || { :message => msgstr })
           raise
         ensure
           work.acknowledge
         end
       end
-
+      Sidekiq.logger.info { "Tell the boss we're done, #{msg['jid']}" }
       @boss.async.processor_done(current_actor)
+      Sidekiq.logger.info { "Job Complete, #{msg['jid']}" }
     end
 
     def inspect
